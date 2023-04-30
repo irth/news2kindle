@@ -8,6 +8,7 @@ from email.utils import COMMASPACE, formatdate
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
+import pathlib
 import smtplib
 import sys
 import pypandoc
@@ -22,16 +23,17 @@ from FeedparserThread import FeedparserThread
 
 logging.basicConfig(level=logging.INFO)
 
-EMAIL_SMTP = os.getenv("EMAIL_SMTP")
-EMAIL_SMTP_PORT = int(os.getenv("EMAIL_SMTP_PORT"))
-EMAIL_USER = os.getenv("EMAIL_USER")
-EMAIL_PASSWD = os.getenv("EMAIL_PASSWORD")
-EMAIL_FROM = os.getenv("EMAIL_FROM")
-KINDLE_EMAIL = os.getenv("KINDLE_EMAIL")
-PANDOC = os.getenv("PANDOC_PATH", "/usr/bin/pandoc")
+#EMAIL_SMTP = os.getenv("EMAIL_SMTP")
+#EMAIL_SMTP_PORT = int(os.getenv("EMAIL_SMTP_PORT"))
+#EMAIL_USER = os.getenv("EMAIL_USER")
+#EMAIL_PASSWD = os.getenv("EMAIL_PASSWORD")
+#EMAIL_FROM = os.getenv("EMAIL_FROM")
+#KINDLE_EMAIL = os.getenv("KINDLE_EMAIL")
+PANDOC = os.getenv("PANDOC_PATH", "pandoc")
+RMAPI = os.getenv("RMAPI_PATH", "rmapi")
 PERIOD = int(os.getenv("UPDATE_PERIOD", 12))  # hours between RSS pulls
 
-CONFIG_PATH = '/config'
+CONFIG_PATH = os.getenv("CONFIG_PATH", './config')
 FEED_FILE = os.path.join(CONFIG_PATH, 'feeds.txt')
 COVER_FILE = os.path.join(CONFIG_PATH, 'cover.png')
 
@@ -118,7 +120,6 @@ html_tail = u"""
 </body>
 </html>
 """
-
 html_perpost = u"""
     <article>
         <h1><a href="{link}">{title}</a></h1>
@@ -156,6 +157,10 @@ def convert_to_mobi(input_file, output_file):
     process = subprocess.Popen(cmd)
     process.wait()
 
+def upload_to_remarkable(input_file):
+    subprocess.Popen([RMAPI, 'mkdir', 'News']).wait()
+    subprocess.Popen([RMAPI, 'put', input_file, 'News']).wait()
+
 
 def do_one_round():
     # get all posts from starting point to now
@@ -179,6 +184,8 @@ def do_one_round():
         logging.info("Creating epub")
 
         epubFile = 'dailynews.epub'
+        pathlib.Path('out').mkdir(exist_ok=True, parents=True)
+        epubFile = datetime.now().strftime("out/%Y-%m-%d %H:%M.epub")
         mobiFile = 'dailynews.mobi'
 
         os.environ['PYPANDOC_PANDOC'] = PANDOC
@@ -189,17 +196,19 @@ def do_one_round():
                               extra_args=["--standalone",
                                           f"--epub-cover-image={COVER_FILE}",
                                           ])
-        convert_to_mobi(epubFile, mobiFile)
+        #convert_to_mobi(epubFile, mobiFile)
+        upload_to_remarkable(epubFile)
 
-        logging.info("Sending to kindle email")
-        send_mail(send_from=EMAIL_FROM,
-                  send_to=[KINDLE_EMAIL],
-                  subject="Daily News",
-                  text="This is your daily news.\n\n--\n\n",
-                  files=[mobiFile])
-        logging.info("Cleaning up...")
-        os.remove(epubFile)
-        os.remove(mobiFile)
+        #logging.info("Sending to kindle email")
+        #send_mail(send_from=EMAIL_FROM,
+        #          send_to=[KINDLE_EMAIL],
+        #          subject="Daily News",
+        #          text="This is your daily news.\n\n--\n\n",
+        #          files=[mobiFile])
+        #logging.info("Cleaning up...")
+        print(epubFile)
+        #os.remove(epubFile)
+        #os.remove(mobiFile)
 
     logging.info("Finished.")
     update_start(now)
