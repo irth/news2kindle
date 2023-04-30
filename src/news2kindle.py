@@ -217,4 +217,6 @@ def do_one_round():
 if __name__ == '__main__':
     while True:
         do_one_round()
+        if PERIOD == 0:
+            exit(0)
         time.sleep(PERIOD*60)
